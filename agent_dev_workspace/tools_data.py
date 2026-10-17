@@ -244,4 +244,45 @@ def make_tools(session):
         session.store_result("list_files_tool", {"subdirectory": subdirectory}, summary)
         return summary
 
-    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool, list_files_tool]
+    @tool
+    def sample_data_tool(
+        n: int = 100,
+        random_state: int = 42,
+    ) -> dict:
+        """Subsamples rows from the working DataFrame in session.
+
+        Args:
+            n: Target number of rows to sample. Defaults to 100.
+            random_state: Random seed for reproducible sampling. Defaults to 42.
+
+        Returns:
+            Dict containing result_id, n_before, n_after, and sampled_indices.
+        """
+        if session.dataframe is None:
+            return {"error": "No dataframe loaded in session."}
+
+        df = session.dataframe
+        n_before = len(df)
+        sample_n = min(n, n_before)
+
+        sampled_df = df.sample(n=sample_n, random_state=random_state)
+        sampled_indices = [int(idx) for idx in sampled_df.index.tolist()]
+
+        session.dataframe = sampled_df
+
+        result_id = session.next_result_id("sample_data")
+        summary = {
+            "result_id": result_id,
+            "n_before": n_before,
+            "n_after": len(sampled_df),
+            "sampled_indices": sampled_indices,
+        }
+
+        session.store_result(
+            "sample_data_tool",
+            {"n": n, "random_state": random_state},
+            summary,
+        )
+        return summary
+
+    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool, list_files_tool, sample_data_tool]

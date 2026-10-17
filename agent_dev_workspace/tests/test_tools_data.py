@@ -168,3 +168,25 @@ def test_list_files_tool():
     # Test error handling for non-existent subdirectory
     error_result = list_files_tool.invoke({"subdirectory": "no_such_dir"})
     assert "error" in error_result
+
+
+def test_sample_data_tool():
+    session = SessionState()
+    premade_tools = make_premade_tools(session)
+    load_dataset_tool = next(t for t in premade_tools if t.name == "load_dataset_tool")
+    load_dataset_tool.invoke({
+        "file_path": "agent_dev/sample_fixture.csv",
+        "text_column": "text",
+        "label_column": "label"
+    })
+
+    data_tools = make_data_tools(session)
+    sample_data_tool = next(t for t in data_tools if t.name == "sample_data_tool")
+
+    result = sample_data_tool.invoke({"n": 4, "random_state": 42})
+
+    # Assert Known Answer #13 from TEST_FIXTURE.md
+    assert result["sampled_indices"] == [1, 5, 0, 7]
+    assert result["n_before"] == 8
+    assert result["n_after"] == 4
+    assert list(session.dataframe.index) == [1, 5, 0, 7]
