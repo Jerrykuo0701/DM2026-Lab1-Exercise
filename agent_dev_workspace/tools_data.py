@@ -1,6 +1,11 @@
 """Tools for data loading, inspection, and cleaning."""
 
 from typing import Optional
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 from langchain_core.tools import tool
 
 
@@ -90,4 +95,77 @@ def make_tools(session):
         )
         return summary
 
-    return [check_missing_tool, check_duplicates_tool]
+    @tool
+    def describe_data_tool(
+        text_column: str = "text",
+        category_column: str = "category_name",
+    ) -> dict:
+        """Computes text length statistics overall and per category, building a box plot visualization.
+
+        Args:
+            text_column: Name of column containing document text. Defaults to "text".
+            category_column: Name of column containing category labels. Defaults to "category_name".
+
+        Returns:
+            Dict containing result_id, overall_stats, and category_stats.
+        """
+        if session.dataframe is None:
+            return {"error": "No dataframe loaded in session."}
+
+        df = session.dataframe
+        if text_column not in df.columns:
+            return {"error": f"Column '{text_column}' not found in session dataframe."}
+
+        text_lengths = df[text_column].fillna("").astype(str).apply(len)
+
+        def get_stats_dict(series: pd.Series) -> dict:
+            desc = series.describe()
+            return {
+                "count": int(desc["count"]),
+                "mean": float(desc["mean"]),
+                "std": float(desc["std"]),
+                "min": float(desc["min"]),
+                "25%": float(desc["25%"]),
+                "50%": float(desc["50%"]),
+                "75%": float(desc["75%"]),
+                "max": float(desc["max"]),
+            }
+
+        overall_stats = get_stats_dict(text_lengths)
+
+        category_stats = {}
+        if category_column in df.columns:
+            for cat, group in df.groupby(category_column):
+                cat_lengths = group[text_column].fillna("").astype(str).apply(len)
+                category_stats[str(cat)] = get_stats_dict(cat_lengths)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        if category_column in df.columns:
+            sns.boxplot(x=df[category_column], y=text_lengths, ax=ax)
+            ax.set_xlabel("Category")
+        else:
+            sns.boxplot(y=text_lengths, ax=ax)
+            ax.set_xlabel("Overall")
+
+        ax.set_ylabel("Text Length (characters)")
+        ax.set_title("Text Length Distribution by Category")
+        plt.tight_layout()
+
+        session.pending_figure = fig
+        plt.close(fig)
+
+        result_id = session.next_result_id("describe_data")
+        summary = {
+            "result_id": result_id,
+            "overall_stats": overall_stats,
+            "category_stats": category_stats,
+        }
+
+        session.store_result(
+            "describe_data_tool",
+            {"text_column": text_column, "category_column": category_column},
+            summary,
+        )
+        return summary
+
+    return [check_missing_tool, check_duplicates_tool, describe_data_tool]

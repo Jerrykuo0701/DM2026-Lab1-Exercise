@@ -1,3 +1,4 @@
+import pytest
 from agent_pipeline.session_state import SessionState
 from premade_tools.data_loading_tools import make_tools as make_premade_tools
 from tools_data import make_tools as make_data_tools
@@ -69,3 +70,53 @@ def test_check_duplicates_tool():
     # Assert Case 2 values against Known Answer #3
     assert result2["remaining_rows"] == 6
     assert len(session2.dataframe) == 6
+
+
+def test_describe_data_tool():
+    session = SessionState()
+    premade_tools = make_premade_tools(session)
+    load_dataset_tool = next(t for t in premade_tools if t.name == "load_dataset_tool")
+    load_dataset_tool.invoke({
+        "file_path": "agent_dev/sample_fixture.csv",
+        "text_column": "text",
+        "label_column": "label"
+    })
+
+    data_tools = make_data_tools(session)
+    describe_data_tool = next(t for t in data_tools if t.name == "describe_data_tool")
+
+    result = describe_data_tool.invoke({})
+
+    # Assert Known Answer #18 from TEST_FIXTURE.md
+    overall = result["overall_stats"]
+    assert overall["count"] == 8
+    assert overall["mean"] == pytest.approx(19.875, abs=1e-3)
+    assert overall["std"] == pytest.approx(9.4330, abs=1e-3)
+    assert overall["min"] == pytest.approx(0.0, abs=1e-3)
+    assert overall["25%"] == pytest.approx(17.75, abs=1e-3)
+    assert overall["50%"] == pytest.approx(20.5, abs=1e-3)
+    assert overall["75%"] == pytest.approx(25.25, abs=1e-3)
+    assert overall["max"] == pytest.approx(30.0, abs=1e-3)
+
+    cat_stats = result["category_stats"]
+    catA = cat_stats["catA"]
+    assert catA["count"] == 4
+    assert catA["mean"] == pytest.approx(17.25, abs=1e-3)
+    assert catA["std"] == pytest.approx(12.5, abs=1e-3)
+    assert catA["min"] == pytest.approx(0.0, abs=1e-3)
+    assert catA["25%"] == pytest.approx(12.75, abs=1e-3)
+    assert catA["50%"] == pytest.approx(20.0, abs=1e-3)
+    assert catA["75%"] == pytest.approx(24.5, abs=1e-3)
+    assert catA["max"] == pytest.approx(29.0, abs=1e-3)
+
+    catB = cat_stats["catB"]
+    assert catB["count"] == 4
+    assert catB["mean"] == pytest.approx(22.5, abs=1e-3)
+    assert catB["std"] == pytest.approx(5.7446, abs=1e-3)
+    assert catB["min"] == pytest.approx(18.0, abs=1e-3)
+    assert catB["25%"] == pytest.approx(18.0, abs=1e-3)
+    assert catB["50%"] == pytest.approx(21.0, abs=1e-3)
+    assert catB["75%"] == pytest.approx(25.5, abs=1e-3)
+    assert catB["max"] == pytest.approx(30.0, abs=1e-3)
+
+    assert session.pending_figure is not None
