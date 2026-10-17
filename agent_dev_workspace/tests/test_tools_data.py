@@ -120,3 +120,36 @@ def test_describe_data_tool():
     assert catB["max"] == pytest.approx(30.0, abs=1e-3)
 
     assert session.pending_figure is not None
+
+
+def test_tokenize_tool():
+    session = SessionState()
+    premade_tools = make_premade_tools(session)
+    load_dataset_tool = next(t for t in premade_tools if t.name == "load_dataset_tool")
+    load_dataset_tool.invoke({
+        "file_path": "agent_dev/sample_fixture.csv",
+        "text_column": "text",
+        "label_column": "label"
+    })
+
+    data_tools = make_data_tools(session)
+    tokenize_tool = next(t for t in data_tools if t.name == "tokenize_tool")
+
+    result = tokenize_tool.invoke({})
+
+    # Assert Known Answer #10 from TEST_FIXTURE.md
+    expected_tokens = [
+        ["always", "alpha", "alpha", "alpha", "beta"],
+        ["always", "alpha", "alpha", "beta"],
+        ["always", "alpha", "beta"],
+        ["always", "gamma", "gamma", "gamma", "delta"],
+        ["always", "gamma", "gamma", "delta"],
+        ["always", "gamma", "delta"],
+        ["always", "gamma", "delta"],
+        [],
+    ]
+
+    assert session.artifacts["tokens"] == expected_tokens
+    assert list(session.dataframe["unigrams"]) == expected_tokens
+    assert result["total_tokens"] == 27
+    assert result["n_documents"] == 8

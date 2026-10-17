@@ -6,6 +6,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from nltk.tokenize import word_tokenize
 from langchain_core.tools import tool
 
 
@@ -168,4 +169,43 @@ def make_tools(session):
         )
         return summary
 
-    return [check_missing_tool, check_duplicates_tool, describe_data_tool]
+    @tool
+    def tokenize_tool(
+        text_column: str = "text",
+    ) -> dict:
+        """Tokenizes document text into lowercased unigrams.
+
+        Args:
+            text_column: Name of column containing document text. Defaults to "text".
+
+        Returns:
+            Dict containing result_id, n_documents, total_tokens, and sample_tokens.
+        """
+        if session.dataframe is None:
+            return {"error": "No dataframe loaded in session."}
+
+        df = session.dataframe
+        if text_column not in df.columns:
+            return {"error": f"Column '{text_column}' not found in session dataframe."}
+
+        tokens_list = [
+            word_tokenize(str(text).lower()) if pd.notna(text) else []
+            for text in df[text_column]
+        ]
+
+        total_tokens = int(sum(len(toks) for toks in tokens_list))
+        session.artifacts["tokens"] = tokens_list
+        session.dataframe["unigrams"] = tokens_list
+
+        result_id = session.next_result_id("tokenize")
+        summary = {
+            "result_id": result_id,
+            "n_documents": len(tokens_list),
+            "total_tokens": total_tokens,
+            "sample_tokens": tokens_list[:3],
+        }
+
+        session.store_result("tokenize_tool", {"text_column": text_column}, summary)
+        return summary
+
+    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool]
