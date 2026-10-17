@@ -190,3 +190,32 @@ def test_sample_data_tool():
     assert result["n_before"] == 8
     assert result["n_after"] == 4
     assert list(session.dataframe.index) == [1, 5, 0, 7]
+
+
+def test_inspect_data_tool():
+    # Test error when no dataset is loaded
+    fresh_session = SessionState()
+    fresh_data_tools = make_data_tools(fresh_session)
+    inspect_tool_no_data = next(t for t in fresh_data_tools if t.name == "inspect_data_tool")
+    err_result = inspect_tool_no_data.invoke({"n_rows": 3})
+    assert "error" in err_result
+
+    # Test standard usage with loaded dataset
+    session = SessionState()
+    premade_tools = make_premade_tools(session)
+    load_dataset_tool = next(t for t in premade_tools if t.name == "load_dataset_tool")
+    load_dataset_tool.invoke({
+        "file_path": "agent_dev/sample_fixture.csv",
+        "text_column": "text",
+        "label_column": "label"
+    })
+
+    data_tools = make_data_tools(session)
+    inspect_data_tool = next(t for t in data_tools if t.name == "inspect_data_tool")
+
+    result = inspect_data_tool.invoke({"n_rows": 3})
+
+    assert result["n_rows_shown"] == 3
+    assert "text" in result["columns"]
+    assert len(result["rows"]) == 3
+    assert result["rows"][0]["text"] == "always alpha alpha alpha beta"

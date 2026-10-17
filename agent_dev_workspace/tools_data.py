@@ -285,4 +285,59 @@ def make_tools(session):
         )
         return summary
 
-    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool, list_files_tool, sample_data_tool]
+    @tool
+    def inspect_data_tool(
+        n_rows: int = 5,
+    ) -> dict:
+        """Inspects the first n_rows of the working DataFrame in session.
+
+        Args:
+            n_rows: Number of rows to display from top of DataFrame. Defaults to 5.
+
+        Returns:
+            Dict containing result_id, n_rows_shown, columns, and rows with text truncated to 100 characters.
+        """
+        if session.dataframe is None:
+            return {"error": "No dataframe loaded in session."}
+
+        df = session.dataframe
+        head_df = df.head(n_rows)
+
+        columns = [str(col) for col in head_df.columns]
+        rows = []
+
+        for _, row in head_df.iterrows():
+            row_dict = {}
+            for col in head_df.columns:
+                val = row[col]
+                if pd.isna(val):
+                    val = ""
+                elif isinstance(val, (int, float, str, bool)):
+                    val = val
+                elif hasattr(val, "item"):
+                    val = val.item()
+                else:
+                    val = str(val)
+
+                if col == "text" and isinstance(val, str):
+                    val = val[:100]
+
+                row_dict[str(col)] = val
+            rows.append(row_dict)
+
+        result_id = session.next_result_id("inspect_data")
+        summary = {
+            "result_id": result_id,
+            "n_rows_shown": len(rows),
+            "columns": columns,
+            "rows": rows,
+        }
+
+        session.store_result(
+            "inspect_data_tool",
+            {"n_rows": n_rows},
+            summary,
+        )
+        return summary
+
+    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool, list_files_tool, sample_data_tool, inspect_data_tool]
