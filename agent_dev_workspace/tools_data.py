@@ -1,5 +1,6 @@
 """Tools for data loading, inspection, and cleaning."""
 
+import os
 from typing import Optional
 import matplotlib
 matplotlib.use('Agg')
@@ -208,4 +209,39 @@ def make_tools(session):
         session.store_result("tokenize_tool", {"text_column": text_column}, summary)
         return summary
 
-    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool]
+    @tool
+    def list_files_tool(
+        subdirectory: str = "",
+    ) -> dict:
+        """Lists directories and files inside a relative subdirectory of the repository root.
+
+        Args:
+            subdirectory: Relative path from repo root to list files/directories from. Defaults to "".
+
+        Returns:
+            Dict containing result_id, directories, and files (or an error dict if path is invalid).
+        """
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        target_path = os.path.normpath(os.path.join(repo_root, subdirectory))
+
+        if not os.path.exists(target_path):
+            return {"error": f"Path '{subdirectory}' does not exist."}
+
+        if not os.path.isdir(target_path):
+            return {"error": f"Path '{subdirectory}' is not a directory."}
+
+        entries = os.listdir(target_path)
+        directories = sorted([e for e in entries if os.path.isdir(os.path.join(target_path, e))])
+        files = sorted([e for e in entries if os.path.isfile(os.path.join(target_path, e))])
+
+        result_id = session.next_result_id("list_files")
+        summary = {
+            "result_id": result_id,
+            "directories": directories,
+            "files": files,
+        }
+
+        session.store_result("list_files_tool", {"subdirectory": subdirectory}, summary)
+        return summary
+
+    return [check_missing_tool, check_duplicates_tool, describe_data_tool, tokenize_tool, list_files_tool]

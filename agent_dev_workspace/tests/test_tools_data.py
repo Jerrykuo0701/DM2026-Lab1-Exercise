@@ -153,3 +153,18 @@ def test_tokenize_tool():
     assert list(session.dataframe["unigrams"]) == expected_tokens
     assert result["total_tokens"] == 27
     assert result["n_documents"] == 8
+
+
+def test_list_files_tool():
+    session = SessionState()
+    data_tools = make_data_tools(session)
+    list_files_tool = next(t for t in data_tools if t.name == "list_files_tool")
+
+    # Assert Known Answer #11 from TEST_FIXTURE.md
+    result = list_files_tool.invoke({"subdirectory": "newdataset"})
+    assert result["directories"] == []
+    assert result["files"] == ["Reddit-stock-sentiment.csv"]
+
+    # Test error handling for non-existent subdirectory
+    error_result = list_files_tool.invoke({"subdirectory": "no_such_dir"})
+    assert "error" in error_result
